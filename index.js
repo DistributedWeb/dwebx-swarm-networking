@@ -2,18 +2,18 @@ const crypto = require('crypto')
 const { EventEmitter } = require('events')
 
 const datEncoding = require('dat-encoding')
-const HypercoreProtocol = require('hypercore-protocol')
-const hyperswarm = require('hyperswarm')
+const HypercoreProtocol = require('ddatabase-protocol')
+const dwswarm = require('dwswarm')
 const pump = require('pump')
 
-const log = require('debug')('corestore:network')
+const log = require('debug')('dwebx:network')
 
-const OUTER_STREAM = Symbol('corestore-outer-stream')
+const OUTER_STREAM = Symbol('dwebx-outer-stream')
 
 class SwarmNetworker extends EventEmitter {
-  constructor (corestore, opts = {}) {
+  constructor (dwebx, opts = {}) {
     super()
-    this.corestore = corestore
+    this.dwebx = dwebx
     this.id = opts.id || crypto.randomBytes(32)
     this.opts = opts
 
@@ -33,7 +33,7 @@ class SwarmNetworker extends EventEmitter {
 
   _replicate (protocolStream) {
     // The initiator parameter here is ignored, since we're passing in a stream.
-    this.corestore.replicate(false, {
+    this.dwebx.replicate(false, {
       ...this._replicationOpts,
       stream: protocolStream,
     })
@@ -43,7 +43,7 @@ class SwarmNetworker extends EventEmitter {
     const self = this
     if (this.swarm) return
 
-    this.swarm = hyperswarm({
+    this.swarm = dwswarm({
       ...this.opts,
       queue: { multiplex: true }
     })
@@ -52,9 +52,9 @@ class SwarmNetworker extends EventEmitter {
       const isInitiator = !!info.client
       if (socket.remoteAddress === '::ffff:127.0.0.1' || socket.remoteAddress === '127.0.0.1') return null
 
-      // We block all the corestore's ifAvailable guards until the connection's handshake has succeeded or the stream closes.
+      // We block all the dwebx's ifAvailable guards until the connection's handshake has succeeded or the stream closes.
       let handshaking = true
-      this.corestore.guard.wait()
+      this.dwebx.guard.wait()
 
       const protocolStream = new HypercoreProtocol(isInitiator, { ...this._replicationOpts })
       protocolStream.on('handshake', () => {
@@ -89,7 +89,7 @@ class SwarmNetworker extends EventEmitter {
       function ifAvailableContinue () {
         if (handshaking) {
           handshaking = false
-          self.corestore.guard.continue()
+          self.dwebx.guard.continue()
         }
       }
     })

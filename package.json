@@ -22,16 +22,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andrewosh/corestore-swarm-networking.git"
+    "url": "git+https://github.com/andrewosh/dwebx-swarm-networking.git"
   },
   "keywords": [
-    "corestore",
-    "hyperswarm"
+    "dwebx",
+    "dwswarm"
   ],
   "author": "Andrew Osheroff <andrewosh@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/andrewosh/corestore-swarm-networking/issues"
+    "url": "https://github.com/andrewosh/dwebx-swarm-networking/issues"
   },
-  "homepage": "https://github.com/andrewosh/corestore-swarm-networking#readme"
+  "homepage": "https://github.com/andrewosh/dwebx-swarm-networking#readme"
 }

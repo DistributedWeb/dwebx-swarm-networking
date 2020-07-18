@@ -1,8 +1,8 @@
 const test = require('tape')
 const ram = require('random-access-memory')
-const dht = require('@hyperswarm/dht')
-const HypercoreProtocol = require('hypercore-protocol')
-const Corestore = require('corestore')
+const dht = require('dwswarm-dht')
+const HypercoreProtocol = require('ddatabase-protocol')
+const Corestore = require('dwebx')
 
 const SwarmNetworker = require('..')
 
@@ -130,7 +130,7 @@ test('can replication with a custom keypair', async t => {
   t.end()
 })
 
-test.skip('each corestore only opens one connection per peer', async t => {
+test.skip('each dwebx only opens one connection per peer', async t => {
   t.end()
 })
 
