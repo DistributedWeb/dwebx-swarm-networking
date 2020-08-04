@@ -1,7 +1,7 @@
 # dwebx-swarm-networking
-[![Build Status](https://travis-ci.com/andrewosh/dwebx-swarm-networking.svg?branch=master)](https://travis-ci.com/andrewosh/dwebx-swarm-networking)
+[![Build Status](https://travis-ci.com/distributedweb/dwebx-swarm-networking.svg?branch=master)](https://travis-ci.com/distributedweb/dwebx-swarm-networking)
 
-A dwebx networking module that uses [dwswarm](https://github.com/dwswarm/network) to discovery peers. This module powers the networking portion of the [Hyperdrive daemon](https://github.com/andrewosh/dwebfs-daemon).
+A dwebx networking module that uses [dwswarm](https://github.com/dwswarm/network) to discovery peers. This module powers the networking portion of the [Hyperdrive daemon](https://github.com/distributedweb/dwebfs-daemon).
 
 Calls to `seed` or `unseed` will not be persisted across restarts, so you'll need to use a separate database that maps discovery keys to network configurations. The Hyperdrive daemon uses [Level](https://github.com/level/level) for this.
 

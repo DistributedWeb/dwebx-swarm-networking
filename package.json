@@ -4,15 +4,15 @@
   "description": "A dwebx networker based on dwswarm ",
   "main": "index.js",
   "dependencies": {
-    "dweb-encoding": "^1.0.0",
-    "dweb-swarm-defaults": "^1.0.0",
+    "dweb-encoding": "1.0.0",
+    "dweb-swarm-defaults": "1.0.0",
     "duplexify": "^4.0.0",
-    "ddatabase-protocol": "^1.4.0",
-    "dwswarm": "^1.0.0",
+    "ddatabase-protocol": "1.4.0",
+    "dwswarm": "1.0.1",
     "pump": "^3.0.0"
   },
   "devDependencies": {
-    "dwebx": "^1.0.0",
+    "dwebx": "1.0.0",
     "random-access-memory": "^3.1.1",
     "standard": "^12.0.1",
     "tape": "^4.9.0"
@@ -22,16 +22,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andrewosh/dwebx-swarm-networking.git"
+    "url": "git+https://github.com/distributedweb/dwebx-swarm-networking.git"
   },
   "keywords": [
     "dwebx",
     "dwswarm"
   ],
-  "author": "Andrew Osheroff <andrewosh@gmail.com>",
+  "author": "Jared Jr <distributedweb@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/andrewosh/dwebx-swarm-networking/issues"
+    "url": "https://github.com/distributedweb/dwebx-swarm-networking/issues"
   },
-  "homepage": "https://github.com/andrewosh/dwebx-swarm-networking#readme"
+  "homepage": "https://github.com/distributedweb/dwebx-swarm-networking#readme"
 }
