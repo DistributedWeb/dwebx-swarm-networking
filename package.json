@@ -1,6 +1,6 @@
 {
   "name": "dwebx-swarm-networking",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A dwebx networker based on dwswarm ",
   "main": "index.js",
   "dependencies": {
