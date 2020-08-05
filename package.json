@@ -1,6 +1,6 @@
 {
   "name": "dwebx-swarm-networking",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A dwebx networker based on dwswarm ",
   "main": "index.js",
   "dependencies": {
@@ -8,7 +8,7 @@
     "dweb-swarm-defaults": "1.0.0",
     "duplexify": "^4.0.0",
     "ddatabase-protocol": "^1.4.0",
-    "dwswarm": "1.0.1",
+    "dwswarm": "^1.0.1",
     "pump": "^3.0.0"
   },
   "devDependencies": {
