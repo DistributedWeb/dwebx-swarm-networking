@@ -1,155 +1,206 @@
 const crypto = require('crypto')
 const { EventEmitter } = require('events')
+const { promisify } = require('util')
 
 const datEncoding = require('dat-encoding')
-const HypercoreProtocol = require('ddatabase-protocol')
-const dwswarm = require('dwswarm')
+const HypercoreProtocol = require('hypercore-protocol')
+const hyperswarm = require('hyperswarm')
 const pump = require('pump')
+const eos = require('end-of-stream')
 
-const log = require('debug')('dwebx:network')
+const log = require('debug')('corestore:network')
 
-const OUTER_STREAM = Symbol('dwebx-outer-stream')
+const OUTER_STREAM = Symbol('corestore-outer-stream')
 
 class SwarmNetworker extends EventEmitter {
-  constructor (dwebx, opts = {}) {
+  constructor (corestore, opts = {}) {
     super()
-    this.dwebx = dwebx
+    this.corestore = corestore
     this.id = opts.id || crypto.randomBytes(32)
     this.opts = opts
+    this.keyPair = opts.keyPair || HypercoreProtocol.keyPair()
 
     this._replicationOpts = {
       id: this.id,
       encrypt: true,
       live: true,
-      keyPair: opts.keyPair || HypercoreProtocol.keyPair()
+      keyPair: this.keyPair
     }
 
-    this._seeding = new Set()
-    this._replicationStreams = []
+    this.streams = []
+    this._joined = new Set()
+    this._flushed = new Set()
+
+    this._streamsProcessing = 0
+    this._streamsProcessed = 0
 
     // Set in listen
     this.swarm = null
+
+    this.setMaxListeners(0)
   }
 
   _replicate (protocolStream) {
     // The initiator parameter here is ignored, since we're passing in a stream.
-    this.dwebx.replicate(false, {
+    this.corestore.replicate(false, {
       ...this._replicationOpts,
-      stream: protocolStream,
+      stream: protocolStream
     })
   }
 
-  _listen () {
+  listen () {
     const self = this
     if (this.swarm) return
 
-    this.swarm = dwswarm({
+    this.swarm = hyperswarm({
       ...this.opts,
+      announceLocalNetwork: true,
       queue: { multiplex: true }
     })
     this.swarm.on('error', err => this.emit('error', err))
     this.swarm.on('connection', (socket, info) => {
       const isInitiator = !!info.client
       if (socket.remoteAddress === '::ffff:127.0.0.1' || socket.remoteAddress === '127.0.0.1') return null
-
-      // We block all the dwebx's ifAvailable guards until the connection's handshake has succeeded or the stream closes.
-      let handshaking = true
-      this.dwebx.guard.wait()
+      const peerInfo = info.peer
+      const discoveryKey = peerInfo && peerInfo.topic
+      var finishedHandshake = false
+      var processed = false
 
       const protocolStream = new HypercoreProtocol(isInitiator, { ...this._replicationOpts })
       protocolStream.on('handshake', () => {
         const deduped = info.deduplicate(protocolStream.publicKey, protocolStream.remotePublicKey)
-        if (deduped) {
-          ifAvailableContinue()
-          return
+        if (!deduped) onhandshake()
+        if (!processed) {
+          processed = true
+          this._streamsProcessed++
+          this.emit('stream-processed')
         }
-        onhandshake()
       })
       protocolStream.on('close', () => {
-        this.emit('stream-closed', protocolStream)
-        ifAvailableContinue()
+        this.emit('stream-closed', protocolStream, info, finishedHandshake)
+        if (!processed) {
+          processed = true
+          this._streamsProcessed++
+          this.emit('stream-processed')
+        }
       })
 
       pump(socket, protocolStream, socket, err => {
         if (err) this.emit('replication-error', err)
-        const idx = this._replicationStreams.indexOf(protocolStream)
+        const idx = this.streams.indexOf(protocolStream)
         if (idx === -1) return
-        this._replicationStreams.splice(idx, 1)
+        this.streams.splice(idx, 1)
       })
 
-      this.emit('stream-opened', protocolStream)
+      this.emit('stream-opened', protocolStream, info)
+      this._streamsProcessing++
 
       function onhandshake () {
+        finishedHandshake = true
         self._replicate(protocolStream)
-        self._replicationStreams.push(protocolStream)
-        self.emit('handshake', protocolStream)
-        ifAvailableContinue()
-      }
-
-      function ifAvailableContinue () {
-        if (handshaking) {
-          handshaking = false
-          self.dwebx.guard.continue()
-        }
+        self.streams.push(protocolStream)
+        self.emit('handshake', protocolStream, info)
       }
     })
+  }
+
+  status (discoveryKey) {
+    return this.swarm && this.swarm.status(discoveryKey)
   }
 
   async join (discoveryKey, opts = {}) {
     if (this.swarm && this.swarm.destroyed) return null
     if (!this.swarm) {
-      this._listen()
+      this.listen()
       return this.join(discoveryKey, opts)
     }
+    const self = this
 
     const keyString = (typeof discoveryKey === 'string') ? discoveryKey : datEncoding.encode(discoveryKey)
-    const keyBuf = (discoveryKey instanceof Buffer) ? discoveryKey: datEncoding.decode(discoveryKey)
+    const keyBuf = (discoveryKey instanceof Buffer) ? discoveryKey : datEncoding.decode(discoveryKey)
 
-    this._seeding.add(keyString)
-    return new Promise((resolve, reject) => {
-      this.swarm.join(keyBuf, {
-        announce: opts.announce !== false,
-        lookup: opts.lookup !== false
-      }, err => {
-        if (err) return reject(err)
-        if (opts.flush !== false) {
-          return this.swarm.flush(err => {
-            if (err) return reject(err)
-            return resolve(null)
-          })
-        }
-        return resolve(null)
-      })
+    this._joined.add(keyString)
+    this.emit('joined', keyBuf)
+    this.swarm.join(keyBuf, {
+      announce: opts.announce !== false,
+      lookup: opts.lookup !== false,
     })
+    if (opts.flush !== false) {
+      await promisify(this.swarm.flush.bind(this.swarm))()
+      if (!this._joined.has(keyString)) {
+        return
+      }
+      const processingAfterFlush = this._streamsProcessing
+      if (this._streamsProcessed >= processingAfterFlush) {
+        this._flushed.add(keyString)
+        this.emit('flushed', keyBuf)
+      } else {
+        // Wait until the stream processing has caught up.
+        const processedListener =  () => {
+          if (!this._joined.has(keyString)) {
+            this.removeListener('stream-processed', processedListener)
+            return
+          }
+          if (this._streamsProcessed >= processingAfterFlush) {
+            this._flushed.add(keyString)
+            this.emit('flushed', keyBuf)
+            this.removeListener('stream-processed', processedListener)
+          }
+        }
+        this.on('stream-processed', processedListener)
+      }
+    }
   }
 
-  leave (discoveryKey) {
+  async leave (discoveryKey) {
     if (this.swarm && this.swarm.destroyed) return
     if (!this.swarm) {
-      this._listen()
+      this.listen()
       return this.leave(discoveryKey)
     }
 
     const keyString = (typeof discoveryKey === 'string') ? discoveryKey : datEncoding.encode(discoveryKey)
-    const keyBuf = (discoveryKey instanceof Buffer) ? discoveryKey: datEncoding.decode(discoveryKey)
+    const keyBuf = (discoveryKey instanceof Buffer) ? discoveryKey : datEncoding.decode(discoveryKey)
 
-    this._seeding.delete(keyString)
-    this.swarm.leave(keyBuf)
+    this._joined.delete(keyString)
 
-    for (let stream of this._replicationStreams) {
+    await new Promise((resolve, reject) => {
+      this.swarm.leave(keyBuf, err => {
+        if (err) return reject(err)
+        return resolve()
+      })
+    })
+
+    for (let stream of this.streams) {
       stream.close(keyBuf)
     }
   }
 
+  joined (discoveryKey) {
+    if (typeof discoveryKey !== 'string') discoveryKey = discoveryKey.toString('hex')
+    return this._joined.has(discoveryKey)
+  }
+
+  flushed (discoveryKey) {
+    if (typeof discoveryKey !== 'string') discoveryKey = discoveryKey.toString('hex')
+    return this._flushed.has(discoveryKey)
+  }
+
   async close () {
     if (!this.swarm) return null
-    return new Promise((resolve, reject) => {
-      for (const dkey of [...this._seeding]) {
-        this.leave(dkey)
-      }
-      for (const stream of this._replicationStreams) {
+
+    const leaving = [...this._joined].map(dkey => this.leave(dkey))
+    await Promise.all(leaving)
+
+    const closingStreams = this.streams.map(stream => {
+      return new Promise(resolve => {
         stream.destroy()
-      }
+        eos(stream, () => resolve())
+      })
+    })
+    await Promise.all(closingStreams)
+
+    return new Promise((resolve, reject) => {
       this.swarm.destroy(err => {
         if (err) return reject(err)
         this.swarm = null

@@ -1,8 +1,9 @@
 const test = require('tape')
 const ram = require('random-access-memory')
-const dht = require('dwswarm-dht')
-const HypercoreProtocol = require('ddatabase-protocol')
-const Corestore = require('dwebx')
+const dht = require('@hyperswarm/dht')
+const hypercoreCrypto = require('hypercore-crypto')
+const HypercoreProtocol = require('hypercore-protocol')
+const Corestore = require('corestore')
 
 const SwarmNetworker = require('..')
 
@@ -13,8 +14,8 @@ test('simple replication', async t => {
   const { store: store1, networker: networker1 } = await create()
   const { store: store2, networker: networker2 } = await create()
 
-  const core1 = await store1.get()
-  const core2 = await store2.get(core1.key)
+  const core1 = store1.get()
+  const core2 = store2.get(core1.key)
 
   await networker1.join(core1.discoveryKey)
   await networker2.join(core2.discoveryKey)
@@ -31,10 +32,10 @@ test('replicate multiple top-level cores', async t => {
   const { store: store1, networker: networker1 } = await create()
   const { store: store2, networker: networker2 } = await create()
 
-  const core1 = await store1.get()
-  const core2 = await store1.get()
-  const core3 = await store2.get(core1.key)
-  const core4 = await store2.get(core2.key)
+  const core1 = store1.get()
+  const core2 = store1.get()
+  const core3 = store2.get(core1.key)
+  const core4 = store2.get(core2.key)
 
   await networker1.join(core1.discoveryKey)
   await networker1.join(core2.discoveryKey)
@@ -57,9 +58,9 @@ test('replicate to multiple receivers', async t => {
   const { store: store2, networker: networker2 } = await create()
   const { store: store3, networker: networker3 } = await create()
 
-  const core1 = await store1.get()
-  const core2 = await store2.get(core1.key)
-  const core3 = await store3.get(core1.key)
+  const core1 = store1.get()
+  const core2 = store2.get(core1.key)
+  const core3 = store3.get(core1.key)
 
   await networker1.join(core1.discoveryKey)
   await networker2.join(core2.discoveryKey)
@@ -79,14 +80,14 @@ test('replicate sub-cores', async t => {
   const { store: store1, networker: networker1 } = await create()
   const { store: store2, networker: networker2 } = await create()
 
-  const core1 = await store1.get()
-  const core3 = await store2.get(core1.key)
+  const core1 = store1.get()
+  const core3 = store2.get(core1.key)
 
   await networker1.join(core1.discoveryKey)
   await networker2.join(core3.discoveryKey)
 
-  const core2 = await store1.get({ parents: [core1.key] })
-  const core4 = await store2.get({ key: core2.key, parents: [core3.key]})
+  const core2 = store1.get({ parents: [core1.key] })
+  const core4 = store2.get({ key: core2.key, parents: [core3.key]})
 
   await append(core1, 'hello')
   await append(core2, 'world')
@@ -100,19 +101,19 @@ test('replicate sub-cores', async t => {
 })
 
 test('can replication with a custom keypair', async t => {
-  const keyPair1 = HypercoreProtocol.keyPair('seed1')
-  const keyPair2 = HypercoreProtocol.keyPair('seed2')
+  const keyPair1 = HypercoreProtocol.keyPair()
+  const keyPair2 = HypercoreProtocol.keyPair()
   const { store: store1, networker: networker1 } = await create({ keyPair: keyPair1 })
   const { store: store2, networker: networker2 } = await create({ keyPair: keyPair2 })
 
-  const core1 = await store1.get()
-  const core3 = await store2.get(core1.key)
+  const core1 = store1.get()
+  const core3 = store2.get(core1.key)
 
   await networker1.join(core1.discoveryKey)
   await networker2.join(core3.discoveryKey)
 
-  const core2 = await store1.get()
-  const core4 = await store2.get({ key: core2.key })
+  const core2 = store1.get()
+  const core4 = store2.get({ key: core2.key })
 
   await append(core1, 'hello')
   await append(core2, 'world')
@@ -121,16 +122,69 @@ test('can replication with a custom keypair', async t => {
   t.same(d1, Buffer.from('hello'))
   t.same(d2, Buffer.from('world'))
 
-  t.same(networker1._replicationStreams[0].remotePublicKey, keyPair2.publicKey)
-  t.same(networker1._replicationStreams[0].publicKey, keyPair1.publicKey)
-  t.same(networker2._replicationStreams[0].remotePublicKey, keyPair1.publicKey)
-  t.same(networker2._replicationStreams[0].publicKey, keyPair2.publicKey)
+  t.same(networker1.streams[0].remotePublicKey, keyPair2.publicKey)
+  t.same(networker1.streams[0].publicKey, keyPair1.publicKey)
+  t.same(networker2.streams[0].remotePublicKey, keyPair1.publicKey)
+  t.same(networker2.streams[0].publicKey, keyPair2.publicKey)
 
   await cleanup([networker1, networker2])
   t.end()
 })
 
-test.skip('each dwebx only opens one connection per peer', async t => {
+test('join status only emits flushed after all handshakes', async t => {
+  const { store: store1, networker: networker1 } = await create()
+  const { store: store2, networker: networker2 } = await create()
+  const { store: store3, networker: networker3 } = await create()
+
+  const core1 = store1.get()
+  const core2 = store2.get(core1.key)
+  await append(core1, 'hello')
+
+  let join2Flushed = 0
+  let join3Flushed = 0
+  let join2FlushPeers = 0
+  let join3FlushPeers = 0
+
+  // If ifAvail were not blocked, the get would immediately return with null (unless the connection's established immediately).
+  await networker1.join(core1.discoveryKey)
+  networker2.on('flushed', dkey => {
+    if (!dkey.equals(core1.discoveryKey)) return
+    join2Flushed++
+    join2FlushPeers = core2.peers.length
+  })
+  await networker2.join(core1.discoveryKey)
+
+  const core3 = store3.get(core1.key)
+  networker3.on('flushed', (dkey) => {
+    if (!dkey.equals(core1.discoveryKey)) return
+    join3Flushed++
+    join3FlushPeers = core3.peers.length
+    allFlushed()
+  })
+  networker3.join(core1.discoveryKey)
+
+  async function allFlushed () {
+    t.same(join2Flushed, 1)
+    t.true(join2FlushPeers >= 1)
+    t.same(join3Flushed, 1)
+    t.true(join3FlushPeers >= 2)
+    await cleanup([networker1, networker2, networker3])
+    t.end()
+  }
+})
+
+test('can destroy multiple times', async t => {
+  const { networker } = await create()
+
+  await networker.close()
+  await networker.close()
+  t.pass('closed successfully')
+
+  await cleanup([networker])
+  t.end()
+})
+
+test.skip('each corestore only opens one connection per peer', async t => {
   t.end()
 })
 

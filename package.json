@@ -1,18 +1,18 @@
 {
-  "name": "dwebx-swarm-networking",
-  "version": "1.0.3",
-  "description": "A dwebx networker based on dwswarm ",
+  "name": "corestore-swarm-networking",
+  "version": "5.5.1",
+  "description": "A corestore networker based on hyperswarm ",
   "main": "index.js",
   "dependencies": {
-    "dweb-encoding": "1.0.0",
-    "dweb-swarm-defaults": "1.0.0",
-    "duplexify": "^4.0.0",
-    "ddatabase-protocol": "^1.4.0",
-    "dwswarm": "^1.0.1",
+    "dat-encoding": "^5.0.1",
+    "debug": "^4.1.1",
+    "end-of-stream": "^1.4.4",
+    "hypercore-protocol": "^8.0.0",
+    "hyperswarm": "^2.10.0",
     "pump": "^3.0.0"
   },
   "devDependencies": {
-    "dwebx": "^1.0.0",
+    "corestore": "^5.0.0",
     "random-access-memory": "^3.1.1",
     "standard": "^12.0.1",
     "tape": "^4.9.0"
@@ -22,16 +22,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/distributedweb/dwebx-swarm-networking.git"
+    "url": "git+https://github.com/andrewosh/corestore-swarm-networking.git"
   },
   "keywords": [
-    "dwebx",
-    "dwswarm"
+    "corestore",
+    "hyperswarm"
   ],
-  "author": "Jared Jr <distributedweb@gmail.com>",
+  "author": "Andrew Osheroff <andrewosh@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/distributedweb/dwebx-swarm-networking/issues"
+    "url": "https://github.com/andrewosh/corestore-swarm-networking/issues"
   },
-  "homepage": "https://github.com/distributedweb/dwebx-swarm-networking#readme"
+  "homepage": "https://github.com/andrewosh/corestore-swarm-networking#readme"
 }
