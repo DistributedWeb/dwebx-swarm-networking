@@ -2,20 +2,20 @@ const crypto = require('crypto')
 const { EventEmitter } = require('events')
 const { promisify } = require('util')
 
-const datEncoding = require('dat-encoding')
-const HypercoreProtocol = require('hypercore-protocol')
-const hyperswarm = require('hyperswarm')
+const datEncoding = require('dweb-encoding')
+const HypercoreProtocol = require('ddatabase-protocol')
+const dwswarm = require('dwswarm')
 const pump = require('pump')
 const eos = require('end-of-stream')
 
-const log = require('debug')('corestore:network')
+const log = require('debug')('dwebx:network')
 
-const OUTER_STREAM = Symbol('corestore-outer-stream')
+const OUTER_STREAM = Symbol('dwebx-outer-stream')
 
 class SwarmNetworker extends EventEmitter {
-  constructor (corestore, opts = {}) {
+  constructor (dwebx, opts = {}) {
     super()
-    this.corestore = corestore
+    this.dwebx = dwebx
     this.id = opts.id || crypto.randomBytes(32)
     this.opts = opts
     this.keyPair = opts.keyPair || HypercoreProtocol.keyPair()
@@ -42,7 +42,7 @@ class SwarmNetworker extends EventEmitter {
 
   _replicate (protocolStream) {
     // The initiator parameter here is ignored, since we're passing in a stream.
-    this.corestore.replicate(false, {
+    this.dwebx.replicate(false, {
       ...this._replicationOpts,
       stream: protocolStream
     })
@@ -52,7 +52,7 @@ class SwarmNetworker extends EventEmitter {
     const self = this
     if (this.swarm) return
 
-    this.swarm = hyperswarm({
+    this.swarm = dwswarm({
       ...this.opts,
       announceLocalNetwork: true,
       queue: { multiplex: true }
